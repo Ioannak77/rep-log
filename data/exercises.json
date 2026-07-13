@@ -1,0 +1,90 @@
+{
+  "equipmentOptions": [
+    { "key": "full_gym",      "label": "Full Gym (machines & cables)" },
+    { "key": "barbell",       "label": "Barbell" },
+    { "key": "dumbbells",     "label": "Dumbbells" },
+    { "key": "bench",         "label": "Adjustable Bench" },
+    { "key": "bands",         "label": "Resistance Bands" },
+    { "key": "pullup_bar",    "label": "Pull-up Bar" },
+    { "key": "kettlebell",    "label": "Kettlebell" },
+    { "key": "smith_machine", "label": "Smith Machine" },
+    { "key": "none",          "label": "None (Bodyweight only)" }
+  ],
+  "goalsOptions": [
+    { "key": "lose_fat",            "label": "Lose fat" },
+    { "key": "build_muscle",        "label": "Build muscle" },
+    { "key": "tone_up",             "label": "Tone up" },
+    { "key": "get_stronger",        "label": "Get stronger" },
+    { "key": "improve_fitness",     "label": "Improve general fitness" },
+    { "key": "improve_flexibility", "label": "Improve flexibility / mobility" }
+  ],
+  "restTimerOptions": [30, 45, 60, 90, 120],
+  "timerAlertOptions": [
+    { "key": "sound",     "label": "Sound" },
+    { "key": "vibration", "label": "Vibration" },
+    { "key": "both",      "label": "Sound + Vibration" },
+    { "key": "silent",    "label": "Silent" }
+  ],
+  "imageFolders": {
+    "none": "bodyweight",
+    "bands": "bands",
+    "dumbbells": "dumbbells",
+    "barbell": "barbell",
+    "full_gym": "machines",
+    "smith_machine": "machines"
+  },
+  "exerciseLibrary": {
+    "none": [
+      { "name": "Push-up", "img": "push-up-bodyweight.png" },
+      { "name": "Incline Push-up", "img": "incline-push-up-bodyweight.png" },
+      { "name": "Squats", "img": "squat-bodyweight.png" },
+      { "name": "Reverse Lunge", "img": "reverse-lunge-bodyweight.png" },
+      { "name": "Walking Lunge", "img": "walking-lunge-bodyweight.png" },
+      { "name": "Glute Bridges", "img": "glute-bridge-bodyweight.png" },
+      { "name": "Single-leg Glute Bridge", "img": "single-leg-glute-bridge-bodyweight.png" },
+      { "name": "Plank", "img": "plank-bodyweight.png" },
+      { "name": "Side Plank", "img": "side-plank-bodyweight.png" },
+      { "name": "Dead Bug", "img": "dead-bug-bodyweight.png" },
+      { "name": "Bird Dog", "img": "bird-dog-bodyweight.png" },
+      { "name": "Mountain Climber", "img": "mountain-climber-bodyweight.png" },
+      { "name": "Superman", "img": "superman-bodyweight.png" },
+      { "name": "Pike Push-up", "img": "pike-push-up-bodyweight.png" },
+      { "name": "Bench Dip", "img": "bench-dip-bodyweight.png" }
+    ],
+    "bands": [
+      { "name": "Chest Press", "img": "chest-press-band.png" },
+      { "name": "Row", "img": "row-band.png" },
+      { "name": "Pulldown", "img": "pulldown-band.png" },
+      { "name": "Shoulder Press", "img": "shoulder-press-band.png" },
+      { "name": "Lateral Raise", "img": "lateral-raise-band.png" },
+      { "name": "Front Raise", "img": "front-raise-band.png" },
+      { "name": "Face Pull", "img": "face-pull-band.png" },
+      { "name": "Bicep Curl", "img": "bicep-curl-band.png" },
+      { "name": "Hammer Curl", "img": "hammer-curl-band.png" },
+      { "name": "Tricep Pushdown", "img": "tricep-pushdown-band.png" },
+      { "name": "Overhead Extension", "img": "overhead-extension-band.png" },
+      { "name": "Squat", "img": "squat-band.png" },
+      { "name": "Romanian Deadlifts", "img": "romanian-deadlift-band.png" },
+      { "name": "Glute Kickback", "img": "glute-kickbacks-band.png" },
+      { "name": "Hip Abduction", "img": "hip-abduction-band.png" }
+    ]
+  },
+  "workouts": {
+    "warmup": {
+      "key": "warmup", "label": "Warm-up", "type": "checklist",
+      "exercises": ["Arm circles", "Marching in place", "Bodyweight squats", "Hip circles", "Light stretching"]
+    },
+    "lower": {
+      "key": "lower", "label": "Lower Body", "type": "strength", "focus": "Glutes, legs, waist tightening",
+      "exercises": []
+    },
+    "upper": {
+      "key": "upper", "label": "Upper Body", "type": "strength", "focus": "Posture, arms, shoulders, upper-body tone",
+      "exercises": []
+    },
+    "full": {
+      "key": "full", "label": "Full Body", "type": "strength", "focus": "Overall tone + calorie burn",
+      "exercises": []
+    }
+  }
+}
