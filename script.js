@@ -73,6 +73,13 @@ function findExerciseImage(name){
   }
   return null;
 }
+function findExerciseData(name){
+  for(const libKey of Object.keys(EXERCISE_LIBRARY)){
+    const found = EXERCISE_LIBRARY[libKey].find(e=>e.name === name);
+    if(found) return found;
+  }
+  return null;
+}
 function getIcon(name){
   const found = findExerciseImage(name);
   if(!found) return null;
@@ -339,7 +346,6 @@ function getAvailableExercises(equipmentKeys){
 function defaultProfile(){
   return {
     name: '',
-    gender: null,
     location: null,
     equipment: [],
     goals: [],
@@ -366,12 +372,7 @@ async function setProfileName(name){
   profile.name = name;
   await saveProfile(profile);
 }
-async function setProfileGender(gender){
-  const profile = await getProfile();
-  profile.gender = profile.gender === gender ? null : gender;
-  await saveProfile(profile);
-  await renderProfileModal();
-}
+
 async function setProfileLocation(loc){
   const profile = await getProfile();
   const newLoc = profile.location === loc ? null : loc;
@@ -432,15 +433,16 @@ function subPageHeaderHTML(title){
     </div>
   `;
 }
+function displayName(profile){
+  const n = (profile.name || '').trim();
+  return n ? n : 'Athlete';
+}
 function profileHubHTML(profile){
   return `
-    <div class="finish-title">Your Profile</div>
+    <div class="finish-title">Settings</div>
+    <div class="profile-greeting">Hi, ${escapeHTML(displayName(profile))}!</div>
     <div class="profile-identity">
-      <input type="text" id="profileNameInput" class="profile-name-input" placeholder="Your name" value="${escapeHTML(profile.name || '')}">
-      <div class="profile-gender-row" id="profileGenderRow">
-        <button type="button" class="plan-btn profile-gender-btn" data-gender="M">M</button>
-        <button type="button" class="plan-btn profile-gender-btn" data-gender="F">F</button>
-      </div>
+      <input type="text" id="profileNameInput" class="profile-name-input" placeholder="Display name (optional)" value="${escapeHTML(profile.name || '')}">
     </div>
     <div class="profile-menu">
       <button type="button" class="profile-menu-item" data-view="equipment"><span>Equipment</span><span class="pmi-arrow">›</span></button>
@@ -491,21 +493,90 @@ function preferencesPageHTML(){
 async function progressPageHTML(){
   const startStr = await getProgramStart();
   const week = startStr ? currentWeekFromStart(startStr) : null;
+  const total = await getStripTotalWeeks(week || 0);
+
+  let rows = '';
+  let hasAny = false;
+  for(let w=0; w<=total; w++){
+    const data = await getWeekData(w);
+    if(!data.photo && data.weight == null && data.bodyFat == null) continue;
+    hasAny = true;
+    const label = w === 0 ? 'Start' : `Week ${w}`;
+    rows += `
+      <div class="progress-history-row" data-week="${w}">
+        ${data.photo ? `<img src="${data.photo}" alt="${label}">` : `<div class="progress-history-noimg">No photo</div>`}
+        <div class="progress-history-info">
+          <div class="progress-history-label">${escapeHTML(label)}</div>
+          <div class="progress-history-stats">${data.weight != null ? `${data.weight}kg` : '—'} · ${data.bodyFat != null ? `${data.bodyFat}% BF` : '—'}</div>
+        </div>
+      </div>
+    `;
+  }
+
   return `
     ${subPageHeaderHTML('Progress')}
     <div class="profile-hint" style="margin-top:0;">
       ${week ? `You're in week ${week} of your progression plan.` : `You haven't started a progression plan yet.`}
     </div>
-    <div class="profile-hint">Weekly check-in photos, weight, and body-fat tracking live in the Progression card on your home screen.</div>
+    <div class="profile-section-title">Check-in history</div>
+    ${hasAny ? `<div class="progress-history-list">${rows}</div>` : `<div class="profile-hint">No check-ins logged yet — add one from the Progression card on your home screen.</div>`}
   `;
 }
 function dataPageHTML(){
   return `
     ${subPageHeaderHTML('Data')}
     <div class="profile-hint" style="margin-top:0;">Your workouts, sets, and photos are stored on this device only.</div>
+    <button type="button" class="checkin-btn" id="exportDataBtn" style="width:100%; margin-bottom:10px;">Export backup</button>
+    <button type="button" class="checkin-btn" id="importDataBtn" style="width:100%; margin-bottom:10px;">Import backup</button>
     <button type="button" class="checkin-btn" id="resetProfileBtn" style="width:100%; margin-bottom:10px;">Reset profile info</button>
     <button type="button" class="checkin-btn" id="clearHistoryBtn" style="width:100%; color:var(--rust); border-color:var(--rust);">Clear all workout history</button>
   `;
+}
+
+async function exportAllData(){
+  try{
+    const res = await window.storage.list('');
+    const keys = res && res.keys ? res.keys : [];
+    const dump = {};
+    for(const k of keys){
+      const v = await window.storage.get(k);
+      if(v && v.value !== undefined) dump[k] = v.value;
+    }
+    const blob = new Blob([JSON.stringify(dump, null, 2)], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rep-log-backup-${todayKey}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast("Backup downloaded");
+  }catch(e){
+    console.error("Export failed", e);
+    showToast("Couldn't export backup");
+  }
+}
+async function importAllData(file){
+  try{
+    const text = await file.text();
+    const dump = JSON.parse(text);
+    const entries = Object.entries(dump);
+    if(!entries.length){ showToast("Backup file looks empty"); return; }
+    for(const [k, v] of entries){
+      await window.storage.set(k, v);
+    }
+    showToast("Backup restored — reloading…");
+    setTimeout(()=> window.location.reload(), 1200);
+  }catch(e){
+    console.error("Import failed", e);
+    showToast("Couldn't read that backup file");
+  }
+}
+const APP_VERSION = '1.0.0';
+const FEEDBACK_EMAIL = 'constantinouioanna7@gmail.com';
+function mailtoLink(subject, body){
+  return `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 function helpPageHTML(){
   return `
@@ -514,6 +585,15 @@ function helpPageHTML(){
       Rep Log tracks your workouts, rest timers, and weekly progress photos — all stored privately on this device.
       <br><br>
       Tap a workout to log sets, or Edit to build your own from your available equipment.
+    </div>
+    <div class="profile-menu" style="margin-top:16px;">
+      <a class="profile-menu-item" href="${mailtoLink('Rep Log — Bug report', 'Describe the bug here:')}"><span>🐞 Report a bug</span></a>
+      <a class="profile-menu-item" href="${mailtoLink('Rep Log — Feature suggestion', 'Describe your idea here:')}"><span>💡 Suggest a feature</span></a>
+      <a class="profile-menu-item" href="${mailtoLink('Rep Log — Exercise request', 'Which exercise would you like added?')}"><span>🏋 Request an exercise</span></a>
+    </div>
+    <div class="help-footer">
+      <div>Version ${APP_VERSION}</div>
+      <div>Built with ❤️ by Ioanna</div>
     </div>
   `;
 }
@@ -530,10 +610,6 @@ async function renderProfileModal(){
   if(profileView === 'hub'){
     body.innerHTML = profileHubHTML(profile);
     $("profileNameInput").addEventListener('change', (e)=> setProfileName(e.target.value.trim()));
-    $("profileGenderRow").querySelectorAll('.profile-gender-btn').forEach(btn=>{
-      btn.classList.toggle('active', btn.dataset.gender === profile.gender);
-      btn.addEventListener('click', ()=> setProfileGender(btn.dataset.gender));
-    });
     body.querySelectorAll('.profile-menu-item').forEach(btn=>{
       btn.addEventListener('click', ()=>{ profileView = btn.dataset.view; renderProfileModal(); });
     });
@@ -610,12 +686,20 @@ async function renderProfileModal(){
 
   if(profileView === 'progress'){
     body.innerHTML = await progressPageHTML();
+    body.querySelectorAll('.progress-history-row').forEach(row=>{
+      row.addEventListener('click', ()=>{
+        closeProfileModal();
+        openPhotoModal(Number(row.dataset.week));
+      });
+    });
     wireBackButton();
     return;
   }
 
   if(profileView === 'data'){
     body.innerHTML = dataPageHTML();
+    $("exportDataBtn").addEventListener('click', exportAllData);
+    $("importDataBtn").addEventListener('click', ()=> $("dataImportInput").click());
     $("resetProfileBtn").addEventListener('click', async ()=>{
       await saveProfile(defaultProfile());
       showToast("Profile reset");
@@ -644,6 +728,34 @@ async function renderProfileModal(){
     wireBackButton();
     return;
   }
+}
+function eimListHTML(title, items){
+  if(!items || !items.length){
+    return `<div class="eim-section-title">${escapeHTML(title)}</div><div class="eim-empty">Not added yet.</div>`;
+  }
+  return `
+    <div class="eim-section-title">${escapeHTML(title)}</div>
+    <ul class="eim-list">${items.map(i=>`<li>${escapeHTML(i)}</li>`).join('')}</ul>
+  `;
+}
+function openExerciseImageModal(src, name){
+  if(!src) return;
+  $("exerciseImageModalImg").src = src;
+  $("exerciseImageModalImg").alt = name;
+  $("exerciseImageModalLabel").textContent = name;
+
+  const data = findExerciseData(name);
+  const body = $("exerciseImageModalBody");
+  body.innerHTML = `
+    ${eimListHTML('Step-by-step', data && data.steps)}
+    ${eimListHTML('Common mistakes', data && data.mistakes)}
+    ${eimListHTML('Tips', data && data.tips)}
+  `;
+
+  $("exerciseImageModal").classList.add('open');
+}
+function closeExerciseImageModal(){
+  $("exerciseImageModal").classList.remove('open');
 }
 
 function openProfileModal(){
@@ -1210,7 +1322,7 @@ async function buildExerciseCard(ex, loggedSets, isCompleted){
 
   card.innerHTML = `
     <div class="exercise-row" data-toggle>
-      <div class="ex-icon-wrap">${iconSvg}</div>
+      <div class="ex-icon-wrap" data-zoom>${iconSvg}</div>
       <div class="exercise-info">
         <div class="exercise-name">${escapeHTML(ex.name)}</div>
         <div class="exercise-target">${escapeHTML(ex.target)}${ex.weight != null ? ` · ${toDisplayWeight(ex.weight)}${unitLabel()}` : ''}</div>
@@ -1230,6 +1342,14 @@ async function buildExerciseCard(ex, loggedSets, isCompleted){
     e.stopPropagation();
     toggleExerciseComplete(ex.name);
   });
+  const zoomWrap = card.querySelector('[data-zoom]');
+  const zoomImg = zoomWrap.querySelector('img');
+  if(zoomImg){
+    zoomWrap.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      openExerciseImageModal(zoomImg.src, ex.name);
+    });
+  }
 
   if(repGoal){
     const tapBtn = card.querySelector('.rep-tap-btn');
@@ -1242,7 +1362,17 @@ async function buildExerciseCard(ex, loggedSets, isCompleted){
       if(targetSetsNum){
         const freshSession = await getSession(todayKey);
         const countNow = freshSession.sets.filter(s=>s.exercise === ex.name).length;
-        if(countNow % targetSetsNum === 0) advanceToNextExercise(ex.name);
+        if(countNow % targetSetsNum === 0){
+          const isAlreadyDone = (freshSession.completed || []).includes(ex.name);
+          if(!isAlreadyDone){
+            await updateSession(todayKey, (s)=>{
+              s.completed = s.completed || [];
+              s.completed.push(ex.name);
+            });
+            await renderAll();
+          }
+          advanceToNextExercise(ex.name);
+        }
       }
     });
   } else {
@@ -1314,11 +1444,19 @@ async function renderPlanSection(){
         item.className = `checklist-item ${done?'done':''}`;
         const iconSvg = getIcon(name) || GENERIC_ICON;
         item.innerHTML = `
-          <div class="ex-icon-wrap">${iconSvg}</div>
+          <div class="ex-icon-wrap" data-zoom>${iconSvg}</div>
           <div class="checklist-label">${escapeHTML(name)}</div>
           <div class="checkbox"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="#15140F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         `;
         item.addEventListener('click', ()=>toggleChecklistItem(name));
+        const zoomWrap = item.querySelector('[data-zoom]');
+        const zoomImg = zoomWrap.querySelector('img');
+        if(zoomImg){
+          zoomWrap.addEventListener('click', (e)=>{
+            e.stopPropagation();
+            openExerciseImageModal(zoomImg.src, name);
+          });
+        }
         group.appendChild(item);
       });
     } else if(w.type === 'strength'){
@@ -1430,6 +1568,10 @@ function buildTemplateEditor(key, exercises, equipmentKeys){
         addRow.querySelector('.t-name').value = ex.name;
         if(!addRow.querySelector('.t-target').value) addRow.querySelector('.t-target').value = '3 × 12';
         addRow.querySelector('.t-target').focus();
+      });
+      chip.querySelector('img').addEventListener('click', (e)=>{
+        e.stopPropagation();
+        openExerciseImageModal(src, ex.name);
       });
       picker.appendChild(chip);
     });
@@ -1678,6 +1820,9 @@ async function init(){
   $("photoModal").addEventListener('click', (e)=>{ if(e.target.id === 'photoModal') closePhotoModal(); });
   $("restSkip").addEventListener('click', skipRest);
 
+  $("exerciseImageModalClose").addEventListener('click', closeExerciseImageModal);
+  $("exerciseImageModal").addEventListener('click', (e)=>{ if(e.target.id === 'exerciseImageModal') closeExerciseImageModal(); });
+
   $("profileBtn").addEventListener('click', openProfileModal);
   $("profileModalClose").addEventListener('click', closeProfileModal);
   $("profileModal").addEventListener('click', (e)=>{ if(e.target.id === 'profileModal') closeProfileModal(); });
@@ -1690,7 +1835,14 @@ async function init(){
   $("newWorkoutCreateBtn").addEventListener('click', createNewWorkout);
   $("newWorkoutName").addEventListener('keydown', (e)=>{ if(e.key === 'Enter') createNewWorkout(); });
 
-  $("checkinFileInput").addEventListener('change', async (e)=>{
+  $("dataImportInput").addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    await importAllData(file);
+    e.target.value = "";
+  });
+
+    $("checkinFileInput").addEventListener('change', async (e)=>{
     const file = e.target.files[0];
     if(!file || currentCheckinWeek === null) return;
     try{

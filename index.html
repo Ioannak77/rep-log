@@ -22,6 +22,16 @@
   </div>
 </div>
 <input type="file" id="checkinFileInput" accept="image/*" capture="environment" style="display:none">
+<input type="file" id="dataImportInput" accept="application/json" style="display:none">
+<div class="finish-modal" id="exerciseImageModal">
+  <div class="finish-modal-content exercise-image-modal-content">
+    <button class="photo-modal-close" id="exerciseImageModalClose">✕</button>
+    <img id="exerciseImageModalImg" src="" alt="" class="exercise-image-modal-img">
+    <div id="exerciseImageModalLabel" class="exercise-image-modal-label"></div>
+    <div id="exerciseImageModalBody"></div>
+  </div>
+</div>
+
 <div class="rest-bar" id="restBar">
   <div class="rest-info">
     <span class="rest-label-text" id="restLabel">Rest</span>
@@ -48,7 +58,7 @@
 
 <header>
   <div class="header-top">
-    <button class="profile-btn" id="profileBtn" aria-label="Profile">
+    <button class="profile-btn" id="profileBtn" aria-label="Settings">
       <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="var(--moss)" stroke-width="2"/><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7" stroke="var(--moss)" stroke-width="2" stroke-linecap="round"/></svg>
     </button>
     <div class="eyebrow" id="todayLabel">—</div>
