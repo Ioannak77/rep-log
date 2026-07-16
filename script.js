@@ -38,6 +38,7 @@ let EQUIPMENT_OPTIONS = [];
 let GOALS_OPTIONS = [];
 let REST_TIMER_OPTIONS = [30, 45, 60, 90, 120];
 let TIMER_ALERT_OPTIONS = [];
+let MUSCLE_GROUP_OPTIONS = [];
 let IMAGE_FOLDERS = {};
 let EXERCISE_LIBRARY = {};
 let WORKOUTS = {};
@@ -51,6 +52,7 @@ async function loadExerciseData(){
     GOALS_OPTIONS = data.goalsOptions || [];
     REST_TIMER_OPTIONS = data.restTimerOptions || [30,45,60,90,120];
     TIMER_ALERT_OPTIONS = data.timerAlertOptions || [];
+    MUSCLE_GROUP_OPTIONS = data.muscleGroupOptions || [];
     IMAGE_FOLDERS = data.imageFolders || {};
     EXERCISE_LIBRARY = data.exerciseLibrary || {};
     WORKOUTS = data.workouts || {};
@@ -529,8 +531,23 @@ function dataPageHTML(){
     <button type="button" class="checkin-btn" id="exportDataBtn" style="width:100%; margin-bottom:10px;">Export backup</button>
     <button type="button" class="checkin-btn" id="importDataBtn" style="width:100%; margin-bottom:10px;">Import backup</button>
     <button type="button" class="checkin-btn" id="resetProfileBtn" style="width:100%; margin-bottom:10px;">Reset profile info</button>
-    <button type="button" class="checkin-btn" id="clearHistoryBtn" style="width:100%; color:var(--rust); border-color:var(--rust);">Clear all workout history</button>
+    <button type="button" class="checkin-btn" id="clearHistoryBtn" style="width:100%; margin-bottom:10px; color:var(--rust); border-color:var(--rust);">Clear all workout history</button>
+    <div class="reset-app-warning">⚠️ This erases everything — export a backup first if you want to keep your data.</div>
+    <button type="button" class="checkin-btn" id="resetAppBtn" style="width:100%; color:var(--rust); border-color:var(--rust);">Reset app (erase everything)</button>
   `;
+}
+
+async function resetEntireApp(){
+  try{
+    const res = await window.storage.list('');
+    const keys = res && res.keys ? res.keys : [];
+    for(const k of keys){ try{ await window.storage.remove(k); }catch(e){ /* ignore */ } }
+    showToast("App reset — reloading…");
+    setTimeout(()=> window.location.reload(), 1000);
+  }catch(e){
+    console.error("Reset app failed", e);
+    showToast("Couldn't reset app");
+  }
 }
 
 async function exportAllData(){
@@ -719,6 +736,18 @@ async function renderProfileModal(){
       showToast("History cleared");
       await renderAll();
     });
+
+    const resetAppBtn = $("resetAppBtn");
+    resetAppBtn.addEventListener('click', async ()=>{
+      if(resetAppBtn.dataset.armed !== '1'){
+        resetAppBtn.dataset.armed = '1';
+        resetAppBtn.textContent = 'Export a backup first! Tap again to erase everything';
+        setTimeout(()=>{ if(resetAppBtn.dataset.armed === '1'){ resetAppBtn.dataset.armed='0'; resetAppBtn.textContent = 'Reset app (erase everything)'; } }, 4000);
+        return;
+      }
+      await resetEntireApp();
+    });
+
     wireBackButton();
     return;
   }
@@ -1550,8 +1579,26 @@ function buildTemplateEditor(key, exercises, equipmentKeys){
     const pickerHint = document.createElement('div');
     pickerHint.className = 'profile-hint';
     pickerHint.style.marginBottom = '6px';
-    pickerHint.textContent = 'Tap an exercise from your equipment to add it:';
+    pickerHint.textContent = 'Filter by muscle, or tap an exercise from your equipment to add it:';
     wrap.appendChild(pickerHint);
+
+    const presentMuscles = new Set(availableExercises.map(ex=>{
+      const data = findExerciseData(ex.name);
+      return data && data.muscle ? data.muscle : null;
+    }).filter(Boolean));
+
+    let activeMuscle = null;
+    const muscleFilterRow = document.createElement('div');
+    muscleFilterRow.className = 'muscle-filter-row';
+    MUSCLE_GROUP_OPTIONS.filter(m=>presentMuscles.has(m.key)).forEach(m=>{
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'muscle-filter-chip';
+      btn.dataset.muscle = m.key;
+      btn.textContent = m.label;
+      muscleFilterRow.appendChild(btn);
+    });
+    wrap.appendChild(muscleFilterRow);
 
     const picker = document.createElement('div');
     picker.className = 'exercise-picker';
@@ -1559,10 +1606,13 @@ function buildTemplateEditor(key, exercises, equipmentKeys){
       const found = findExerciseImage(ex.name);
       const folder = found ? (IMAGE_FOLDERS[found.libKey] || found.libKey) : '';
       const src = found ? `${EXERCISE_IMAGE_BASE}${folder}/${found.img}` : '';
+      const data = findExerciseData(ex.name);
+      const muscle = data && data.muscle ? data.muscle : '';
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'exercise-picker-chip';
       chip.dataset.name = ex.name;
+      chip.dataset.muscle = muscle;
       chip.innerHTML = `<img src="${src}" alt="${escapeHTML(ex.name)}"><span class="epc-label">${escapeHTML(ex.name)}</span>`;
       chip.addEventListener('click', ()=>{
         addRow.querySelector('.t-name').value = ex.name;
@@ -1577,19 +1627,30 @@ function buildTemplateEditor(key, exercises, equipmentKeys){
     });
     wrap.appendChild(picker);
 
-    addRow.querySelector('.t-name').addEventListener('input', (e)=>{
-      const query = e.target.value;
+    function applyFilters(){
+      const query = addRow.querySelector('.t-name').value;
       const chips = [...picker.querySelectorAll('.exercise-picker-chip')];
-      if(!query.trim()){
-        chips.forEach(c=>{ c.style.display=''; c.style.order=''; });
-        return;
-      }
       chips.forEach(chip=>{
+        const matchesMuscle = !activeMuscle || chip.dataset.muscle === activeMuscle;
+        if(!matchesMuscle){ chip.style.display = 'none'; chip.style.order=''; return; }
+        if(!query.trim()){ chip.style.display=''; chip.style.order=''; return; }
         const score = fuzzyScore(query, chip.dataset.name);
         if(score < 0){ chip.style.display = 'none'; }
         else { chip.style.display = ''; chip.style.order = String(1000 - Math.round(score)); }
       });
+    }
+
+    muscleFilterRow.querySelectorAll('.muscle-filter-chip').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        activeMuscle = activeMuscle === btn.dataset.muscle ? null : btn.dataset.muscle;
+        muscleFilterRow.querySelectorAll('.muscle-filter-chip').forEach(b=>{
+          b.classList.toggle('active', b.dataset.muscle === activeMuscle);
+        });
+        applyFilters();
+      });
     });
+
+    addRow.querySelector('.t-name').addEventListener('input', applyFilters);
   }
 
   wrap.appendChild(addRow);

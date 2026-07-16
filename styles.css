@@ -157,6 +157,12 @@ main{padding:24px 20px 0;}
 .checklist-label{font-size:14px; flex:1;}
 .checklist-item.done .checklist-label{color:var(--text-dim); text-decoration:line-through;}
 
+.reset-app-warning{font-size:11px; color:var(--rust); line-height:1.5; margin-bottom:8px; text-align:center;}
+
+.muscle-filter-row{display:flex; gap:6px; overflow-x:auto; padding-bottom:8px; margin-bottom:8px;}
+.muscle-filter-chip{flex-shrink:0; background:var(--surface-2); border:1px solid var(--border); color:var(--text-dim); border-radius:16px; padding:6px 12px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.03em; cursor:pointer; white-space:nowrap;}
+.muscle-filter-chip.active{background:rgba(138,154,91,0.16); border-color:var(--moss); color:var(--moss);}
+
 .exercise-card{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:10px;}
 .exercise-row{display:flex; gap:12px; align-items:center; cursor:pointer;}
 .exercise-info{flex:1; min-width:0;}
