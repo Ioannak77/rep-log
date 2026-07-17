@@ -1619,10 +1619,7 @@ function buildTemplateEditor(key, exercises, equipmentKeys){
         if(!addRow.querySelector('.t-target').value) addRow.querySelector('.t-target').value = '3 × 12';
         addRow.querySelector('.t-target').focus();
       });
-      chip.querySelector('img').addEventListener('click', (e)=>{
-        e.stopPropagation();
-        openExerciseImageModal(src, ex.name);
-      });
+      
       picker.appendChild(chip);
     });
     wrap.appendChild(picker);
