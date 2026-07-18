@@ -657,10 +657,7 @@ async function renderProfileModal(){
       const done = profile.equipment.includes(opt.key);
       const item = document.createElement('div');
       item.className = `checklist-item ${done?'done':''}`;
-      item.innerHTML = `
-        <div class="checklist-label">${escapeHTML(opt.label)}</div>
-        <div class="checkbox"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="#15140F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-      `;
+      item.innerHTML = `<div class="checklist-label">${escapeHTML(opt.label)}</div>`;
       item.addEventListener('click', ()=>toggleProfileEquipment(opt.key));
       eqList.appendChild(item);
     });
@@ -675,10 +672,7 @@ async function renderProfileModal(){
       const done = (profile.goals || []).includes(opt.key);
       const item = document.createElement('div');
       item.className = `checklist-item ${done?'done':''}`;
-      item.innerHTML = `
-        <div class="checklist-label">${escapeHTML(opt.label)}</div>
-        <div class="checkbox"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="#15140F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-      `;
+      item.innerHTML = `<div class="checklist-label">${escapeHTML(opt.label)}</div>`;
       item.addEventListener('click', ()=>toggleProfileGoal(opt.key));
       goalsList.appendChild(item);
     });
@@ -1481,9 +1475,7 @@ async function renderPlanSection(){
         }
         await deleteWorkout(key);
       });
-      w.exercises.forEach(name=>{
-        const done = session.checklist.includes(name);
-        const checklistExercises = (key === 'warmup') ? getWarmupExercises(profile) : w.exercises;
+      const checklistExercises = (key === 'warmup') ? getWarmupExercises(profile) : w.exercises;
       checklistExercises.forEach(raw=>{
         const { name, detail } = normalizeChecklistItem(raw);
         const done = session.checklist.includes(name);
@@ -1635,12 +1627,18 @@ function buildTemplateEditor(key, exercises, equipmentKeys){
       chip.dataset.name = ex.name;
       chip.dataset.muscle = muscle;
       chip.innerHTML = `<img src="${src}" alt="${escapeHTML(ex.name)}"><span class="epc-label">${escapeHTML(ex.name)}</span>`;
-      chip.addEventListener('click', ()=>{
-        addRow.querySelector('.t-name').value = ex.name;
-        if(!addRow.querySelector('.t-target').value) addRow.querySelector('.t-target').value = '3 × 12';
-        addRow.querySelector('.t-target').focus();
+      EQUIPMENT_OPTIONS.forEach(opt=>{
+      const done = profile.equipment.includes(opt.key);
+      const item = document.createElement('div');
+      item.className = `checklist-item ${done?'done':''}`;
+      item.innerHTML = `<div class="checklist-label">${escapeHTML(opt.label)}</div>`;
+      item.addEventListener('click', ()=>toggleProfileEquipment(opt.key));
+      eqList.appendChild(item);
+    });
+      chip.querySelector('img').addEventListener('click', (e)=>{
+        e.stopPropagation();
+        openExerciseImageModal(src, ex.name);
       });
-      
       picker.appendChild(chip);
     });
     wrap.appendChild(picker);
