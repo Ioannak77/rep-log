@@ -1627,14 +1627,11 @@ function buildTemplateEditor(key, exercises, equipmentKeys){
       chip.dataset.name = ex.name;
       chip.dataset.muscle = muscle;
       chip.innerHTML = `<img src="${src}" alt="${escapeHTML(ex.name)}"><span class="epc-label">${escapeHTML(ex.name)}</span>`;
-      EQUIPMENT_OPTIONS.forEach(opt=>{
-      const done = profile.equipment.includes(opt.key);
-      const item = document.createElement('div');
-      item.className = `checklist-item ${done?'done':''}`;
-      item.innerHTML = `<div class="checklist-label">${escapeHTML(opt.label)}</div>`;
-      item.addEventListener('click', ()=>toggleProfileEquipment(opt.key));
-      eqList.appendChild(item);
-    });
+      chip.addEventListener('click', ()=>{
+        addRow.querySelector('.t-name').value = ex.name;
+        if(!addRow.querySelector('.t-target').value) addRow.querySelector('.t-target').value = '3 × 12';
+        addRow.querySelector('.t-target').focus();
+      });
       chip.querySelector('img').addEventListener('click', (e)=>{
         e.stopPropagation();
         openExerciseImageModal(src, ex.name);
