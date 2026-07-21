@@ -230,6 +230,33 @@ main{padding:24px 20px 0;}
 .progress-history-label{font-weight:600; font-size:13px;}
 .progress-history-stats{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); margin-top:2px;}
 
+.recap-banner{display:flex; align-items:center; gap:12px; background:linear-gradient(135deg, rgba(138,154,91,0.18), rgba(216,162,74,0.14)); border:1px solid var(--moss); border-radius:12px; padding:12px 14px; margin:14px 20px 0; cursor:pointer;}
+.recap-banner-mascot{width:40px; height:40px; flex-shrink:0;}
+.recap-banner-mascot svg{width:100%; height:100%;}
+.recap-banner-text{flex:1; font-size:13px; font-weight:600; line-height:1.4;}
+.recap-banner-arrow{color:var(--moss); font-size:22px; flex-shrink:0;}
+
+.recap-modal-content{max-width:400px; width:100%; max-height:88vh; overflow-y:auto; box-sizing:border-box; text-align:center;}
+.recap-mascot{width:72px; height:72px; margin:0 auto 8px;}
+.recap-mascot svg{width:100%; height:100%;}
+.recap-month-title{font-family:'Oswald',sans-serif; font-size:20px; font-weight:700; text-transform:uppercase; letter-spacing:.02em; margin-bottom:18px;}
+.recap-stat-row{display:flex; align-items:center; gap:12px; text-align:left; padding:10px 0; border-bottom:1px solid var(--border);}
+.recap-stat-icon{font-size:22px; flex-shrink:0; width:28px; text-align:center;}
+.recap-stat-body{flex:1; min-width:0;}
+.recap-stat-label{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-dim);}
+.recap-stat-value{font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700; color:var(--amber); margin-top:2px;}
+.recap-stat-sub{margin-top:2px;}
+.recap-delta{font-size:11px; font-weight:600; font-family:'JetBrains Mono',monospace;}
+.recap-delta.up{color:var(--moss);}
+.recap-delta.down{color:var(--rust);}
+.recap-section-title{font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--amber); margin:18px 0 8px; font-weight:600; text-align:left;}
+.recap-pr-list{display:flex; flex-direction:column; gap:6px; margin-bottom:6px;}
+.recap-pr-item{display:flex; justify-content:space-between; align-items:center; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:13px;}
+.recap-pr-name{font-weight:600;}
+.recap-pr-delta{color:var(--moss); font-family:'JetBrains Mono',monospace; font-weight:700;}
+.recap-empty{font-size:12px; color:var(--text-dim); font-style:italic; text-align:left;}
+.recap-footer{margin-top:20px; padding-top:14px; border-top:1px solid var(--border); font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:.02em; color:var(--text-dim);}
+
 input, .exercise-input{background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:12px; font-family:'Inter',sans-serif; font-size:15px; width:100%;}
 input:focus{outline:2px solid var(--moss); outline-offset:-1px;}
 input[type=number]{font-family:'JetBrains Mono',monospace;}

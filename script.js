@@ -35,7 +35,6 @@ let userTimerAlert = 'sound';
 
 /* ---------- data loaded from data/exercises.json ---------- */
 let EQUIPMENT_OPTIONS = [];
-let GOALS_OPTIONS = [];
 let REST_TIMER_OPTIONS = [30, 45, 60, 90, 120];
 let TIMER_ALERT_OPTIONS = [];
 let MUSCLE_GROUP_OPTIONS = [];
@@ -50,7 +49,6 @@ async function loadExerciseData(){
     const res = await fetch('data/exercises.json?v=2', { cache: 'no-store' });
     const data = await res.json();
     EQUIPMENT_OPTIONS = data.equipmentOptions || [];
-    GOALS_OPTIONS = data.goalsOptions || [];
     REST_TIMER_OPTIONS = data.restTimerOptions || [30,45,60,90,120];
     TIMER_ALERT_OPTIONS = data.timerAlertOptions || [];
     MUSCLE_GROUP_OPTIONS = data.muscleGroupOptions || [];
@@ -95,6 +93,12 @@ function findExerciseData(name){
   }
   return null;
 }
+
+function getExerciseRestSeconds(name){
+  const data = findExerciseData(name);
+  return (data && data.rest) ? data.rest : userRestSeconds;
+}
+
 function getIcon(name){
   const found = findExerciseImage(name);
   if(!found) return null;
@@ -363,7 +367,6 @@ function defaultProfile(){
     name: '',
     location: null,
     equipment: [],
-    goals: [],
     units: 'kg',
     restTimerSeconds: 30,
     timerAlert: 'sound'
@@ -413,14 +416,7 @@ async function toggleProfileEquipment(key){
   await saveProfile(profile);
   await renderProfileModal();
 }
-async function toggleProfileGoal(key){
-  const profile = await getProfile();
-  const goals = new Set(profile.goals || []);
-  goals.has(key) ? goals.delete(key) : goals.add(key);
-  profile.goals = [...goals];
-  await saveProfile(profile);
-  await renderProfileModal();
-}
+
 async function setProfileUnits(units){
   const profile = await getProfile();
   profile.units = units;
@@ -461,7 +457,6 @@ function profileHubHTML(profile){
     </div>
     <div class="profile-menu">
       <button type="button" class="profile-menu-item" data-view="equipment"><span>Equipment</span><span class="pmi-arrow">›</span></button>
-      <button type="button" class="profile-menu-item" data-view="goals"><span>Goals</span><span class="pmi-arrow">›</span></button>
       <button type="button" class="profile-menu-item" data-view="preferences"><span>Preferences</span><span class="pmi-arrow">›</span></button>
       <button type="button" class="profile-menu-item" data-view="progress"><span>Progress</span><span class="pmi-arrow">›</span></button>
       <button type="button" class="profile-menu-item" data-view="data"><span>Data</span><span class="pmi-arrow">›</span></button>
@@ -482,13 +477,7 @@ function equipmentPageHTML(){
     <div id="equipmentList"></div>
   `;
 }
-function goalsPageHTML(){
-  return `
-    ${subPageHeaderHTML('Goals')}
-    <div class="profile-hint" style="margin-top:0;">Select what you're working toward.</div>
-    <div id="goalsList"></div>
-  `;
-}
+
 function preferencesPageHTML(){
   return `
     ${subPageHeaderHTML('Preferences')}
@@ -498,7 +487,7 @@ function preferencesPageHTML(){
       <button type="button" class="plan-btn" data-units="lbs">Pounds (lbs)</button>
     </div>
     <div class="profile-section-title">Rest timer</div>
-    <div class="profile-hint" style="margin-top:0;">Default rest between sets.</div>
+    <div class="profile-hint" style="margin-top:0;">Most exercises have their own recommended rest time built in. This is the fallback used for exercises without one (e.g. custom ones you add yourself).</div>
     <div class="plan-grid" id="restTimerGrid"></div>
     <div class="profile-section-title">Timer alert</div>
     <div class="profile-hint" style="margin-top:0;">How you're notified when rest is over.</div>
@@ -522,7 +511,7 @@ async function progressPageHTML(){
         ${data.photo ? `<img src="${data.photo}" alt="${label}">` : `<div class="progress-history-noimg">No photo</div>`}
         <div class="progress-history-info">
           <div class="progress-history-label">${escapeHTML(label)}</div>
-          <div class="progress-history-stats">${data.weight != null ? `${data.weight}kg` : '—'} · ${data.bodyFat != null ? `${data.bodyFat}% BF` : '—'}</div>
+          <div class="progress-history-stats">${data.weight != null ? `${toDisplayWeight(data.weight)}${unitLabel()}` : '—'} · ${data.bodyFat != null ? `${data.bodyFat}% BF` : '—'}</div>
         </div>
       </div>
     `;
@@ -535,6 +524,7 @@ async function progressPageHTML(){
     </div>
     <div class="profile-section-title">Check-in history</div>
     ${hasAny ? `<div class="progress-history-list">${rows}</div>` : `<div class="profile-hint">No check-ins logged yet — add one from the Progression card on your home screen.</div>`}
+    <button type="button" class="checkin-btn" id="viewRecapBtn" style="width:100%; margin-top:14px;">View last month's recap</button>
   `;
 }
 function dataPageHTML(){
@@ -665,21 +655,6 @@ async function renderProfileModal(){
     return;
   }
 
-  if(profileView === 'goals'){
-    body.innerHTML = goalsPageHTML();
-    const goalsList = $("goalsList");
-    GOALS_OPTIONS.forEach(opt=>{
-      const done = (profile.goals || []).includes(opt.key);
-      const item = document.createElement('div');
-      item.className = `checklist-item ${done?'done':''}`;
-      item.innerHTML = `<div class="checklist-label">${escapeHTML(opt.label)}</div>`;
-      item.addEventListener('click', ()=>toggleProfileGoal(opt.key));
-      goalsList.appendChild(item);
-    });
-    wireBackButton();
-    return;
-  }
-
   if(profileView === 'preferences'){
     body.innerHTML = preferencesPageHTML();
     $("unitsGrid").querySelectorAll('.plan-btn').forEach(btn=>{
@@ -716,6 +691,15 @@ async function renderProfileModal(){
         openPhotoModal(Number(row.dataset.week));
       });
     });
+    const viewRecapBtn = $("viewRecapBtn");
+    if(viewRecapBtn){
+      viewRecapBtn.addEventListener('click', async ()=>{
+        const now = new Date();
+        const prevDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
+        closeProfileModal();
+        await openMonthlyRecap(prevDate.getFullYear(), prevDate.getMonth());
+      });
+    }
     wireBackButton();
     return;
   }
@@ -807,11 +791,277 @@ async function closeProfileModal(){
   await renderStats();
 }
 
+/* ---------- monthly recap ---------- */
+const MASCOT_SVG = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="50" cy="54" r="38" fill="var(--moss)"/>
+  <rect x="8" y="28" width="84" height="11" rx="5" fill="var(--amber)"/>
+  <circle cx="38" cy="52" r="5" fill="#15140F"/>
+  <circle cx="62" cy="52" r="5" fill="#15140F"/>
+  <path d="M34 66 Q50 80 66 66" stroke="#15140F" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M72 26 Q77 18 82 26 Q82 33 74 33 Q73 29 72 26 Z" fill="#8EC9F0"/>
+</svg>`;
+
+function daysInMonth(year, monthIndex){ return new Date(year, monthIndex+1, 0).getDate(); }
+function formatDurationLong(ms){
+  const totalMin = Math.round(ms/60000);
+  const h = Math.floor(totalMin/60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+function muscleLabelFor(key){
+  const found = MUSCLE_GROUP_OPTIONS.find(m=>m.key===key);
+  return found ? found.label : key;
+}
+
+async function computeMonthlyRecap(year, monthIndex){
+  const monthPrefix = `${year}-${pad(monthIndex+1)}`;
+  const prevDate = new Date(year, monthIndex-1, 1);
+  const prevMonthPrefix = `${prevDate.getFullYear()}-${pad(prevDate.getMonth()+1)}`;
+
+  const allKeys = await getAllSessionKeys();
+  const dateKeys = allKeys.map(k=>k.replace('session:',''));
+  const monthDateKeys = dateKeys.filter(k=>k.startsWith(monthPrefix));
+  const prevMonthDateKeys = dateKeys.filter(k=>k.startsWith(prevMonthPrefix));
+
+  let workoutsCompleted = 0;
+  let totalDurationMs = 0;
+  let totalVolume = 0;
+  let totalSets = 0;
+  let totalReps = 0;
+  const exerciseDayCounts = {};
+  const muscleSetCounts = {};
+  const prMap = {};
+
+  for(const dk of monthDateKeys){
+    const s = await getSession(dk);
+    if(s.sets.length > 0) workoutsCompleted++;
+    if(s.startedAt && s.finishedAt && s.finishedAt > s.startedAt){
+      totalDurationMs += (s.finishedAt - s.startedAt);
+    }
+    totalVolume += volumeOf(s.sets);
+    totalSets += s.sets.length;
+    s.sets.forEach(set=>{
+      totalReps += Number(set.reps) || 0;
+      if(!exerciseDayCounts[set.exercise]) exerciseDayCounts[set.exercise] = new Set();
+      exerciseDayCounts[set.exercise].add(dk);
+      const data = findExerciseData(set.exercise);
+      const muscle = data && data.muscle ? data.muscle : null;
+      if(muscle) muscleSetCounts[muscle] = (muscleSetCounts[muscle] || 0) + 1;
+    });
+    (s.newPRs || []).forEach(ev=>{
+      if(ev.type === 'weight' && ev.delta != null && ev.delta > 0){
+        if(!prMap[ev.exercise] || ev.delta > prMap[ev.exercise]) prMap[ev.exercise] = ev.delta;
+      }
+    });
+  }
+
+  let prevWorkouts = 0;
+  let prevVolume = 0;
+  for(const dk of prevMonthDateKeys){
+    const s = await getSession(dk);
+    if(s.sets.length > 0) prevWorkouts++;
+    prevVolume += volumeOf(s.sets);
+  }
+
+  const workoutsDelta = workoutsCompleted - prevWorkouts;
+  const volumeDeltaPct = prevVolume > 0 ? Math.round(((totalVolume - prevVolume) / prevVolume) * 100) : null;
+
+  const totalDays = daysInMonth(year, monthIndex);
+  const weeksInMonth = totalDays / 7;
+  const avgPerWeek = weeksInMonth > 0 ? Math.round((workoutsCompleted / weeksInMonth) * 10) / 10 : 0;
+
+  const muscleEntries = Object.entries(muscleSetCounts).sort((a,b)=> b[1]-a[1]);
+  const mostMuscle = muscleEntries.length ? muscleLabelFor(muscleEntries[0][0]) : null;
+  const leastMuscle = muscleEntries.length ? muscleLabelFor(muscleEntries[muscleEntries.length-1][0]) : null;
+
+  const dayEntries = Object.entries(exerciseDayCounts).map(([name, set])=>[name, set.size]).sort((a,b)=> b[1]-a[1]);
+  const favoriteExercise = dayEntries.length ? { name: dayEntries[0][0], sessions: dayEntries[0][1] } : null;
+
+  const consistencyScore = Math.min(100, Math.round((workoutsCompleted / totalDays) * 100));
+
+  const prs = Object.entries(prMap)
+    .map(([exercise, delta])=>({ exercise, delta }))
+    .sort((a,b)=> b.delta - a.delta)
+    .slice(0, 5);
+
+  const monthLabel = new Date(year, monthIndex, 1).toLocaleDateString(undefined, { month:'long', year:'numeric' });
+
+  return {
+    monthLabel, workoutsCompleted, workoutsDelta,
+    totalDurationMs, totalVolume, volumeDeltaPct, avgPerWeek,
+    prs, mostMuscle, leastMuscle, favoriteExercise,
+    totalSets, totalReps, consistencyScore
+  };
+}
+
+function recapStatRow(icon, label, value, sub){
+  return `
+    <div class="recap-stat-row">
+      <div class="recap-stat-icon">${icon}</div>
+      <div class="recap-stat-body">
+        <div class="recap-stat-label">${escapeHTML(label)}</div>
+        <div class="recap-stat-value">${value}</div>
+        ${sub ? `<div class="recap-stat-sub">${sub}</div>` : ``}
+      </div>
+    </div>
+  `;
+}
+
+function renderRecapContent(recap){
+  const deltaWorkoutsHTML = recap.workoutsDelta !== 0
+    ? `<span class="recap-delta ${recap.workoutsDelta>0?'up':'down'}">${recap.workoutsDelta>0?'⬆':'⬇'} ${recap.workoutsDelta>0?'+':''}${recap.workoutsDelta} vs last month</span>`
+    : '';
+  const deltaVolumeHTML = recap.volumeDeltaPct !== null
+    ? `<span class="recap-delta ${recap.volumeDeltaPct>=0?'up':'down'}">${recap.volumeDeltaPct>=0?'⬆':'⬇'} ${recap.volumeDeltaPct>=0?'+':''}${recap.volumeDeltaPct}%</span>`
+    : '';
+
+  const prHTML = recap.prs.length
+    ? recap.prs.map(p=>`
+        <div class="recap-pr-item">
+          <span class="recap-pr-name">${escapeHTML(p.exercise)}</span>
+          <span class="recap-pr-delta">+${Math.round(toDisplayWeight(p.delta)*10)/10}${unitLabel()}</span>
+        </div>
+      `).join('')
+    : `<div class="recap-empty">No new PRs this month — keep pushing!</div>`;
+
+  return `
+    <div class="recap-mascot">${MASCOT_SVG}</div>
+    <div class="recap-month-title">${escapeHTML(recap.monthLabel)}</div>
+
+    ${recapStatRow('🏋️', 'Workouts completed', recap.workoutsCompleted, deltaWorkoutsHTML)}
+    ${recapStatRow('⏱', 'Total training time', formatDurationLong(recap.totalDurationMs))}
+    ${recapStatRow('💪', 'Total volume lifted', `${Math.round(toDisplayWeight(recap.totalVolume)).toLocaleString()} ${unitLabel()}`, deltaVolumeHTML)}
+    ${recapStatRow('📅', 'Average workouts/week', recap.avgPerWeek)}
+
+    <div class="recap-section-title">🏆 Personal records</div>
+    <div class="recap-pr-list">${prHTML}</div>
+
+    ${recap.mostMuscle ? recapStatRow('⭐', 'Most trained muscle', escapeHTML(recap.mostMuscle)) : ''}
+    ${recap.leastMuscle ? recapStatRow('⚠', 'Least trained muscle', escapeHTML(recap.leastMuscle)) : ''}
+    ${recap.favoriteExercise ? recapStatRow('❤', 'Favorite exercise', escapeHTML(recap.favoriteExercise.name), `${recap.favoriteExercise.sessions} sessions`) : ''}
+
+    ${recapStatRow('📊', 'Total sets', recap.totalSets)}
+    ${recapStatRow('🔢', 'Total reps', recap.totalReps.toLocaleString())}
+    ${recapStatRow('✅', 'Consistency score', `${recap.consistencyScore}/100`)}
+
+    <div class="recap-footer">See you next month 👋</div>
+  `;
+}
+
+async function getRecapSeen(monthKey){
+  try{ const res = await window.storage.get(`recap-seen:${monthKey}`); return !!(res && res.value); }
+  catch(e){ return false; }
+}
+async function setRecapSeen(monthKey){
+  try{ await window.storage.set(`recap-seen:${monthKey}`, '1'); }
+  catch(e){ console.error("Could not mark recap seen", e); }
+}
+
+let pendingRecapMonth = null;
+
+async function checkForMonthlyRecap(){
+  const now = new Date();
+  const prevDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const year = prevDate.getFullYear();
+  const monthIndex = prevDate.getMonth();
+  const monthKey = `${year}-${pad(monthIndex+1)}`;
+
+  const allKeys = await getAllSessionKeys();
+  const hasData = allKeys.some(k=> k.replace('session:','').startsWith(monthKey));
+  if(!hasData) return;
+
+  const seen = await getRecapSeen(monthKey);
+  if(seen) return;
+
+  pendingRecapMonth = { year, monthIndex, key: monthKey };
+  const banner = $("recapBanner");
+  const monthLabel = new Date(year, monthIndex, 1).toLocaleDateString(undefined, { month:'long' });
+  $("recapBannerMascot").innerHTML = MASCOT_SVG;
+  $("recapBannerText").textContent = `🎉 Your ${monthLabel} Recap is ready! Tap it.`;
+  banner.style.display = 'flex';
+}
+
+async function openMonthlyRecap(year, monthIndex){
+  const recap = await computeMonthlyRecap(year, monthIndex);
+  $("recapModalBody").innerHTML = renderRecapContent(recap);
+  $("recapModal").classList.add('open');
+}
+
+async function handleRecapBannerTap(){
+  if(!pendingRecapMonth) return;
+  await openMonthlyRecap(pendingRecapMonth.year, pendingRecapMonth.monthIndex);
+  await setRecapSeen(pendingRecapMonth.key);
+  $("recapBanner").style.display = 'none';
+  pendingRecapMonth = null;
+}
+
 /* ---------- helpers ---------- */
 function formatDuration(ms){
   const totalSec = Math.max(0, Math.floor(ms/1000));
   const h = Math.floor(totalSec/3600), m = Math.floor((totalSec%3600)/60), s = totalSec%60;
   return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function slugify(str){
+  return String(str).trim().toLowerCase().replace(/\s+/g,'-').replace(/['"/\\]/g,'');
+}
+
+function calcSuggestedIncrement(weightKg){
+  if(weightKg >= 20) return 2.5;
+  if(weightKg >= 10) return 1.25;
+  return 0.5;
+}
+
+async function getWeightForExerciseInSession(session, exercise){
+  const sets = session.sets.filter(s=>s.exercise === exercise);
+  if(!sets.length) return null;
+  return sets[sets.length - 1].weight;
+}
+
+async function countConsecutiveSessionsAtWeight(exercise, weight){
+  const keys = await getAllSessionKeys();
+  const dateKeys = keys.map(k=>k.replace('session:','')).sort((a,b)=> b.localeCompare(a));
+  let count = 0;
+  for(const key of dateKeys){
+    const s = await getSession(key);
+    const w = await getWeightForExerciseInSession(s, exercise);
+    if(w === null) continue;
+    if(w === weight) count++;
+    else break;
+  }
+  return count;
+}
+
+let pendingOverload = null;
+function openOverloadModal(exerciseName, currentWeight, newWeight){
+  pendingOverload = { exerciseName, newWeight };
+  $("overloadModalBody").textContent = `You've completed 5 workouts at ${toDisplayWeight(currentWeight)}${unitLabel()} for ${exerciseName}. Want to try ${toDisplayWeight(newWeight)}${unitLabel()}?`;
+  $("overloadModal").classList.add('open');
+}
+function closeOverloadModal(){
+  $("overloadModal").classList.remove('open');
+  pendingOverload = null;
+}
+async function acceptOverload(){
+  if(!pendingOverload) return;
+  try{
+    await window.storage.set(`weight-override:${slugify(pendingOverload.exerciseName)}`, String(pendingOverload.newWeight));
+  }catch(e){ console.error("Could not save weight override", e); }
+  showToast("Next time, we'll suggest the new weight");
+  closeOverloadModal();
+}
+
+async function checkProgressiveOverload(exerciseName){
+  const session = await getSession(todayKey);
+  const weight = await getWeightForExerciseInSession(session, exerciseName);
+  if(!weight || weight <= 0) return;
+
+  const count = await countConsecutiveSessionsAtWeight(exerciseName, weight);
+  if(count > 0 && count % 5 === 0){
+    const increment = calcSuggestedIncrement(weight);
+    const newWeight = Math.round((weight + increment) * 100) / 100;
+    openOverloadModal(exerciseName, weight, newWeight);
+  }
 }
 
 function prKey(exercise){
@@ -829,8 +1079,10 @@ async function checkAndUpdatePR(exercise, weight, reps){
   const record = await getPRRecord(exercise);
   const events = [];
   if(weight > record.maxWeight){
+    const prevMax = record.maxWeight;
     record.maxWeight = weight; record.maxWeightReps = reps;
-    events.push({ type:'weight', detail:`Heaviest weight — ${toDisplayWeight(weight)}${unitLabel()} × ${reps}` });
+    const delta = prevMax > 0 ? (weight - prevMax) : null;
+    events.push({ type:'weight', detail:`Heaviest weight — ${toDisplayWeight(weight)}${unitLabel()} × ${reps}`, weight, delta });
   }
   const wKey = String(weight);
   if(reps > (record.repsAtWeight[wKey] || 0)){
@@ -1032,7 +1284,7 @@ async function renderCheckinRow(week){
 
   metricsRow.innerHTML = `
     <div class="checkin-metrics">
-      <input type="number" id="checkinWeight" placeholder="Weight kg" inputmode="decimal" step="0.1" value="${data.weight ?? ''}">
+      <input type="number" id="checkinWeight" placeholder="Weight ${unitLabel()}" inputmode="decimal" step="0.1" value="${data.weight != null ? toDisplayWeight(data.weight) : ''}">
       <input type="number" id="checkinBodyFat" placeholder="Body fat %" inputmode="decimal" step="0.1" value="${data.bodyFat ?? ''}">
       <button id="checkinSaveMetrics">Save</button>
     </div>
@@ -1041,7 +1293,7 @@ async function renderCheckinRow(week){
     const weight = $("checkinWeight").value;
     const bodyFat = $("checkinBodyFat").value;
     const current = await getWeekData(week);
-    await saveWeekData(week, { photo: current.photo, weight: weight ? Number(weight) : null, bodyFat: bodyFat ? Number(bodyFat) : null });
+    await saveWeekData(week, { photo: current.photo, weight: weight ? toStorageWeight(weight) : null, bodyFat: bodyFat ? Number(bodyFat) : null });
     showToast("Check-in stats saved");
   });
 }
@@ -1066,7 +1318,7 @@ async function renderPhotoStrip(currentWeek){
     const data = await getWeekData(w);
     const item = document.createElement('div');
     item.className = 'photo-strip-item';
-    const sub = data.weight ? `${data.weight}kg` : '\u00A0';
+    const sub = data.weight ? `${toDisplayWeight(data.weight)}${unitLabel()}` : '\u00A0';
     const wkLabel = w === 0 ? 'Start' : `Wk ${w}`;
     item.innerHTML = data.photo
       ? `<img src="${data.photo}" alt="Week ${w}"><div class="ph-label">${wkLabel} · ${sub}</div>`
@@ -1097,7 +1349,7 @@ async function openPhotoModal(week){
   $("photoModalStats").innerHTML = `
     <button class="checkin-btn" id="modalPhotoBtn">${data.photo ? 'Retake photo' : 'Add photo'}</button>
     <div class="checkin-metrics">
-      <input type="number" id="modalWeight" placeholder="Weight kg" inputmode="decimal" step="0.1" value="${data.weight ?? ''}">
+      <input type="number" id="modalWeight" placeholder="Weight ${unitLabel()}" inputmode="decimal" step="0.1" value="${data.weight != null ? toDisplayWeight(data.weight) : ''}">
       <input type="number" id="modalBodyFat" placeholder="Body fat %" inputmode="decimal" step="0.1" value="${data.bodyFat ?? ''}">
       <button id="modalSaveMetrics">Save</button>
     </div>
@@ -1108,7 +1360,7 @@ async function openPhotoModal(week){
     const weight = $("modalWeight").value;
     const bodyFat = $("modalBodyFat").value;
     const current = await getWeekData(week);
-    await saveWeekData(week, { photo: current.photo, weight: weight ? Number(weight) : null, bodyFat: bodyFat ? Number(bodyFat) : null });
+    await saveWeekData(week, { photo: current.photo, weight: weight ? toStorageWeight(weight) : null, bodyFat: bodyFat ? Number(bodyFat) : null });
     showToast("Check-in stats saved");
     closePhotoModal();
     await renderProgression();
@@ -1258,11 +1510,12 @@ async function quickLog(exercise, weightVal, repsVal, targetSets){
   }
   await renderAll();
 
+  const restSeconds = getExerciseRestSeconds(exercise);
   const countForExercise = updated.sets.filter(s=>s.exercise === exercise).length;
   if(targetSets && countForExercise % targetSets === 0){
-    startRest(userRestSeconds, "Exercise done — rest before next", userTimerAlert);
+    startRest(restSeconds, "Exercise done — rest before next", userTimerAlert);
   } else {
-    startRest(userRestSeconds, "Rest between sets", userTimerAlert);
+    startRest(restSeconds, "Rest between sets", userTimerAlert);
   }
 }
 async function deleteSet(id){
@@ -1333,7 +1586,14 @@ async function buildExerciseCard(ex, loggedSets, isCompleted){
   const repGoal = parseRepGoal(ex.target);
   const setNumber = targetSetsNum ? Math.min(loggedSets.length + 1, targetSetsNum) : loggedSets.length + 1;
   const lastLogged = loggedSets.length ? loggedSets[loggedSets.length - 1] : null;
-  const weightDefault = lastLogged ? toDisplayWeight(lastLogged.weight) : (ex.weight != null ? toDisplayWeight(ex.weight) : (prev ? toDisplayWeight(prev.weight) : ''));
+  let overrideWeight = null;
+  if(!lastLogged){
+    try{
+      const res = await window.storage.get(`weight-override:${slugify(ex.name)}`);
+      if(res && res.value) overrideWeight = Number(res.value);
+    }catch(e){ /* ignore */ }
+  }
+  const weightDefault = lastLogged ? toDisplayWeight(lastLogged.weight) : (overrideWeight != null ? toDisplayWeight(overrideWeight) : (ex.weight != null ? toDisplayWeight(ex.weight) : (prev ? toDisplayWeight(prev.weight) : '')));
 
   const bodyHTML = repGoal
     ? `
@@ -1361,7 +1621,7 @@ async function buildExerciseCard(ex, loggedSets, isCompleted){
       <div class="ex-icon-wrap" data-zoom>${iconSvg}</div>
       <div class="exercise-info">
         <div class="exercise-name">${escapeHTML(ex.name)}</div>
-        <div class="exercise-target">${escapeHTML(ex.target)}${ex.weight != null ? ` · ${toDisplayWeight(ex.weight)}${unitLabel()}` : ''}</div>
+        <div class="exercise-target">${escapeHTML(ex.target)}${ex.weight != null ? ` · ${toDisplayWeight(ex.weight)}${unitLabel()}` : ''} · Rest ${getExerciseRestSeconds(ex.name)}s</div>
         ${ex.note ? `<div class="exercise-note">${escapeHTML(ex.note)}</div>` : ``}
         ${prev ? `<div class="exercise-prev">Previous (${escapeHTML(prevLabel)}): <b>${toDisplayWeight(prev.weight)}${unitLabel()} × ${prev.reps}</b></div>` : ``}
         <div class="tally">${tallySVG(loggedSets.length)}<span class="tally-count">${loggedSets.length} logged</span></div>
@@ -1408,6 +1668,7 @@ async function buildExerciseCard(ex, loggedSets, isCompleted){
             await renderAll();
           }
           advanceToNextExercise(ex.name);
+          if(!isAlreadyDone) await checkProgressiveOverload(ex.name);
         }
       }
     });
@@ -1429,7 +1690,10 @@ async function toggleExerciseComplete(name){
     s.completed = isDone ? s.completed.filter(n=>n!==name) : [...s.completed, name];
   });
   await renderAll();
-  if(!isDone) advanceToNextExercise(name);
+  if(!isDone){
+    advanceToNextExercise(name);
+    await checkProgressiveOverload(name);
+  }
 }
 
 async function renderPlanSection(){
@@ -1745,35 +2009,15 @@ async function renderStats(){
   $("statVolume").textContent = Math.round(toDisplayWeight(volumeOf(session.sets)));
   $("statVolumeLabel").textContent = `Volume (${unitLabel()})`;
 }
-async function renderHistory(){
+async function updateStreak(){
   const keys = await getAllSessionKeys();
   const dateKeys = keys.map(k=>k.replace('session:','')).filter(k=>k !== todayKey).sort((a,b)=> b.localeCompare(a));
-  const container = $("historyList");
   const todaySession = await getSession(todayKey);
 
   const allActiveKeys = [];
   for(const key of dateKeys.slice(0,60)){
     const s = await getSession(key);
     if(s.sets.length > 0) allActiveKeys.push({key, sets:s.sets});
-  }
-
-  if(allActiveKeys.length === 0){
-    container.innerHTML = `<div class="empty">Past sessions will show up here.</div>`;
-  } else {
-    container.innerHTML = "";
-    allActiveKeys.forEach(({key, sets})=>{
-      const grouped = groupByExercise(sets);
-      const item = document.createElement("div");
-      item.className = "history-item";
-      item.innerHTML = `
-        <div>
-          <div class="history-date">${prettyDate(key)}</div>
-          <div class="history-sub">${grouped.size} exercise${grouped.size===1?'':'s'} · ${sets.length} sets</div>
-        </div>
-        <div class="history-vol">${Math.round(toDisplayWeight(volumeOf(sets)))} ${unitLabel()}</div>
-      `;
-      container.appendChild(item);
-    });
   }
 
   const allKeys = new Set([todayKey, ...allActiveKeys.map(x=>x.key)]);
@@ -1789,7 +2033,6 @@ async function renderHistory(){
   }
   $("statStreak").textContent = streak;
 }
-
 /* ---------- workout timer ---------- */
 let workoutTimerInterval = null;
 let workoutTimerStartedAt = null;
@@ -1875,7 +2118,7 @@ async function renderAll(){
   await renderPlanSection();
   await renderExtras();
   await renderStats();
-  await renderHistory();
+  await updateStreak();
   await renderRepeatButton();
   await updateWorkoutBar();
 }
@@ -1897,6 +2140,17 @@ async function init(){
   $("exerciseImageModalClose").addEventListener('click', closeExerciseImageModal);
   $("exerciseImageModal").addEventListener('click', (e)=>{ if(e.target.id === 'exerciseImageModal') closeExerciseImageModal(); });
 
+  $("recapBanner").addEventListener('click', handleRecapBannerTap);
+  $("recapModalClose").addEventListener('click', ()=> $("recapModal").classList.remove('open'));
+  $("recapModal").addEventListener('click', (e)=>{ if(e.target.id === 'recapModal') $("recapModal").classList.remove('open'); });
+
+  await checkForMonthlyRecap();
+  $("overloadModalClose").addEventListener('click', closeOverloadModal);
+  $("overloadNotNowBtn").addEventListener('click', closeOverloadModal);
+  $("overloadIncreaseBtn").addEventListener('click', acceptOverload);
+  $("overloadModal").addEventListener('click', (e)=>{ if(e.target.id === 'overloadModal') closeOverloadModal(); });
+
+  $("profileBtn").addEventListener('click', openProfileModal);
   $("profileBtn").addEventListener('click', openProfileModal);
   $("profileModalClose").addEventListener('click', closeProfileModal);
   $("profileModal").addEventListener('click', (e)=>{ if(e.target.id === 'profileModal') closeProfileModal(); });
